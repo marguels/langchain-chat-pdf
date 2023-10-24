@@ -4,9 +4,10 @@ from PyPDF2 import PdfReader
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.prompts import PromptTemplate
 from langchain.llms.huggingface_hub import HuggingFaceHub
-from langchain.chains import LLMChain
+from langchain.chains import RetrievalQA
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.vectorstores.faiss import FAISS
+from langchain.memory import VectorStoreRetrieverMemory
 from langchain.prompts import PromptTemplate
 
 def get_pdf_text(pdf_documents):
@@ -41,7 +42,8 @@ def main():
     Answer: Let's think step by step.
     """
     prompt_template = PromptTemplate(template=template, input_variables=["question"])
-    sentence_transformer_model = "sentence-transformers/all-MiniLM-L6-v2"
+    embedding_model = "sentence-transformers/all-MiniLM-L6-v2"
+    # embedding_model = "hkunlp/instructor-xl"
     llm_model = "google/flan-t5-xxl"
     
     # Setup GUI
@@ -49,6 +51,9 @@ def main():
     
     if 'text' not in st.session_state:
         st.session_state.text = ""
+    
+    if 'vector_store' not in st.session_state:
+        st.session_state.vector_store = None
     
     # Upload and process documents
     with st.sidebar:
@@ -58,17 +63,26 @@ def main():
             with st.spinner('Processing...'):
                 pdf_text = get_pdf_text(pdf_documents)
                 text_chunks = get_chunks(pdf_text)
-                st.session_state.vector_store = create_embeddings(text_chunks=text_chunks, model_name=sentence_transformer_model)
+                st.session_state.vector_store = create_embeddings(text_chunks=text_chunks, model_name=embedding_model)
                 st.success('Done! You can now ask questions to your PDFs')
     
     # Run questions
     st.title('Chat with Multiple PDFs :books:')
     user_question = st.text_input('Ask a question about the PDFs')
     if user_question is not None and user_question != '':
-        llm_chain = LLMChain(prompt=prompt_template, llm=HuggingFaceHub(repo_id=llm_model, model_kwargs={"temperature":0.5, "max_length":400}))
+        retriever = st.session_state.vector_store.as_retriever()
+        memory = VectorStoreRetrieverMemory(retriever=retriever)
+        llm = HuggingFaceHub(repo_id=llm_model, model_kwargs={"temperature":0.5, "max_length":512})
+
+        qa = RetrievalQA.from_chain_type(
+                    llm=llm,
+                    chain_type="stuff",
+                    retriever=retriever,
+                    memory=memory)
+        
         with st.spinner('Searching...'):
             if user_question:
-                response = llm_chain.run(user_question)
+                response = qa.run(user_question)
                 st.write(response)
             else:
                 st.warning('Please enter a question')
