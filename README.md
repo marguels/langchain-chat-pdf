@@ -1,4 +1,16 @@
 # How to run
+## With Docker
+1. Build the docker image
+```sh
+docker build -t streamlit_app .
+```
+
+2. Run specifying the `.env` file
+```sh
+docker run -p 8080:8080 --env-file .env streamlit_app
+```
+
+## Locally
 
 1. Create virtual environment using `venv` module:
 ```sh
