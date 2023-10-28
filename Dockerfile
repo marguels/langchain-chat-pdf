@@ -4,9 +4,14 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y git
 
-COPY . /app
+# Copying requirements first will help with cache
+COPY ./requirements.txt /app
 
-RUN pip install --no-cache-dir --upgrade -r requirements.txt
+RUN pip install --upgrade -r requirements.txt
+# RUN pip install --no-cache-dir --upgrade -r requirements.txt
+
+COPY ./main.py /app
+COPY ./.env /app
 
 EXPOSE 8080
 
